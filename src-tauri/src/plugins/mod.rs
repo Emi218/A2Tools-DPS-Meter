@@ -2908,6 +2908,8 @@ mod tests {
     fn plugin_windows_reach_only_their_own_commands() {
         for label in ["plugin-ping", "plugins-dock", "pw_ping_ping"] {
             assert!(allowed_from(label, "plugin_storage_get"), "{label}");
+            assert!(allowed_from(label, "plugin_voicevox_speakers"), "{label}");
+            assert!(allowed_from(label, "plugin_voicevox_synthesis"), "{label}");
             assert!(allowed_from(label, "open_url"), "{label}");
             for cmd in ["show_update_window", "send_logs_to_dev", "plugin_add_folder", "plugin_install", "update_settings", "capture_screenshot", "set_run_as_admin"] {
                 assert!(!allowed_from(label, cmd), "{label} {cmd}");
