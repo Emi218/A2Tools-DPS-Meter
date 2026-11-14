@@ -136,6 +136,7 @@ const PLUGIN_SURFACE_COMMANDS: &[&str] = &[
     "open_url", "plugin_abyss_siege", "plugin_boss_follow", "plugin_boss_timers", "plugin_close",
     "plugin_fps_admin", "plugin_fps_watch", "plugin_hello", "plugin_screenshot", "plugin_set_docked", "plugin_storage_get",
     "plugin_storage_set", "plugin_widget_area", "plugin_widget_close", "plugin_widget_drag",
+    "plugin_voicevox_speakers", "plugin_voicevox_synthesis",
     "plugin_widget_hello", "plugin_widget_open", "plugin_widget_place", "plugin_widget_post",
     "plugin_widget_send", "plugin_widget_where", "plugin_widgets_lock", "plugin_widgets_locked",
     "plugin_window", "plugin_window_fit", "set_meter_shown", "start_tool_drag",
