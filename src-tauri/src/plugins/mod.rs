@@ -136,7 +136,7 @@ const PLUGIN_SURFACE_COMMANDS: &[&str] = &[
     "open_url", "plugin_abyss_siege", "plugin_boss_follow", "plugin_boss_timers", "plugin_close",
     "plugin_fps_admin", "plugin_fps_watch", "plugin_hello", "plugin_screenshot", "plugin_set_docked", "plugin_storage_get",
     "plugin_storage_set", "plugin_widget_area", "plugin_widget_close", "plugin_widget_drag",
-    "plugin_voicevox_speakers", "plugin_voicevox_synthesis",
+    "plugin_voicevox_speakers", "plugin_voicevox_synthesis", "plugin_coeiroink_speakers", "plugin_coeiroink_synthesis",
     "plugin_widget_hello", "plugin_widget_open", "plugin_widget_place", "plugin_widget_post",
     "plugin_widget_send", "plugin_widget_where", "plugin_widgets_lock", "plugin_widgets_locked",
     "plugin_window", "plugin_window_fit", "set_meter_shown", "start_tool_drag",
@@ -3242,4 +3242,121 @@ pub async fn plugin_voicevox_synthesis(
     _speaker: u32,
 ) -> Result<Vec<u8>, String> {
     Err("VOICEVOX連携にはオンライン機能を含むビルドが必要です".into())
+}
+
+
+// COEIROINK v2 is a separate local engine with UUID + style ID voices.
+// Keep the destination fixed to localhost, just as for VOICEVOX.
+#[cfg(feature = "online")]
+#[tauri::command]
+pub async fn plugin_coeiroink_speakers(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    plugin: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let id = window_plugin(&window, plugin.as_deref())?;
+    require(&app, &id, "coeiroink")?;
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let response = client
+        .get("http://127.0.0.1:50032/v1/speakers")
+        .send()
+        .await
+        .map_err(|e| format!("COEIROINKに接続できません: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("COEIROINKエンジンの応答エラー: {e}"))?;
+    response.json().await.map_err(|e| format!("話者一覧を読み取れません: {e}"))
+}
+
+#[cfg(not(feature = "online"))]
+#[tauri::command]
+pub async fn plugin_coeiroink_speakers(
+    _app: tauri::AppHandle,
+    _window: tauri::WebviewWindow,
+    _plugin: Option<String>,
+) -> Result<serde_json::Value, String> {
+    Err("COEIROINK連携にはオンライン機能を含むビルドが必要です".into())
+}
+
+#[cfg(feature = "online")]
+#[tauri::command]
+pub async fn plugin_coeiroink_synthesis(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    plugin: Option<String>,
+    text: String,
+    speaker_uuid: String,
+    style_id: u32,
+) -> Result<Vec<u8>, String> {
+    let id = window_plugin(&window, plugin.as_deref())?;
+    require(&app, &id, "coeiroink")?;
+    if text.trim().is_empty() || text.chars().count() > 200 {
+        return Err("読み上げる文章は1〜200文字で指定してください".into());
+    }
+    if speaker_uuid.len() != 36 || !speaker_uuid.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
+        return Err("COEIROINKの話者UUIDが正しくありません".into());
+    }
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let prosody = client
+        .post("http://127.0.0.1:50032/v1/estimate_prosody")
+        .json(&serde_json::json!({ "text": text }))
+        .send()
+        .await
+        .map_err(|e| format!("COEIROINKに接続できません: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("韻律の推定に失敗しました: {e}"))?
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|e| format!("韻律データを読み取れません: {e}"))?;
+    let detail = prosody.get("detail").cloned().unwrap_or_else(|| serde_json::json!([]));
+    let body = serde_json::json!({
+        "speakerUuid": speaker_uuid,
+        "styleId": style_id,
+        "text": text,
+        "prosodyDetail": detail,
+        "speedScale": 1.0,
+        "volumeScale": 1.0,
+        "pitchScale": 0.0,
+        "intonationScale": 1.0,
+        "prePhonemeLength": 0.1,
+        "postPhonemeLength": 0.1,
+        "outputSamplingRate": 44100,
+        "sampledIntervalValue": 0,
+        "adjustedF0": [],
+        "processingAlgorithm": "coeiroink"
+    });
+    let response = client
+        .post("http://127.0.0.1:50032/v1/synthesis")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("COEIROINKの音声合成に失敗しました: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("COEIROINKの音声合成に失敗しました: {e}"))?;
+    if response.content_length().is_some_and(|n| n > 10 * 1024 * 1024) {
+        return Err("生成された音声が大きすぎます".into());
+    }
+    let bytes = response.bytes().await.map_err(|e| e.to_string())?;
+    if bytes.len() > 10 * 1024 * 1024 {
+        return Err("生成された音声が大きすぎます".into());
+    }
+    Ok(bytes.to_vec())
+}
+
+#[cfg(not(feature = "online"))]
+#[tauri::command]
+pub async fn plugin_coeiroink_synthesis(
+    _app: tauri::AppHandle,
+    _window: tauri::WebviewWindow,
+    _plugin: Option<String>,
+    _text: String,
+    _speaker_uuid: String,
+    _style_id: u32,
+) -> Result<Vec<u8>, String> {
+    Err("COEIROINK連携にはオンライン機能を含むビルドが必要です".into())
 }
