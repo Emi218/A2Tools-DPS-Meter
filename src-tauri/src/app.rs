@@ -4754,6 +4754,8 @@ pub fn run() {
             crate::plugins::plugin_boss_timers,
             crate::plugins::plugin_abyss_siege,
             crate::plugins::plugin_storage_set,
+            crate::plugins::plugin_voicevox_speakers,
+            crate::plugins::plugin_voicevox_synthesis,
             get_dps_snapshot,
             get_skill_details,
             get_details_context,

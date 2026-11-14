@@ -105,6 +105,14 @@
         return call("plugin_fps_admin");
       },
       "storage.set": ([key, value]) => call("plugin_storage_set", { key: String(key), value: String(value) }),
+      "voicevox.speakers": () => {
+        if (!allowed("voicevox")) throw new Error('the plugin lacks the "voicevox" permission');
+        return call("plugin_voicevox_speakers");
+      },
+      "voicevox.synthesis": ([text, speaker]) => {
+        if (!allowed("voicevox")) throw new Error('the plugin lacks the "voicevox" permission');
+        return call("plugin_voicevox_synthesis", { text: String(text), speaker: Number(speaker) });
+      },
       "window.show": () => {
         if (!allowed("window")) throw new Error('the plugin lacks the "window" permission');
         return call("plugin_window", { visible: true });

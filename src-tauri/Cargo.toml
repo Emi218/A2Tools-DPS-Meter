@@ -131,7 +131,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 chrono = { version = "0.4", features = ["serde"] }
 parking_lot = "0.12"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"], optional = true }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json"], optional = true }
 # Live field boss updates pushed by a2tools.app (plugins/boss_live.rs), on the
 # same rustls and web PKI roots as reqwest.
 tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "rustls-tls-webpki-roots"], optional = true }

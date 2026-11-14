@@ -136,6 +136,7 @@ const PLUGIN_SURFACE_COMMANDS: &[&str] = &[
     "open_url", "plugin_abyss_siege", "plugin_boss_follow", "plugin_boss_timers", "plugin_close",
     "plugin_fps_admin", "plugin_fps_watch", "plugin_hello", "plugin_screenshot", "plugin_set_docked", "plugin_storage_get",
     "plugin_storage_set", "plugin_widget_area", "plugin_widget_close", "plugin_widget_drag",
+    "plugin_voicevox_speakers", "plugin_voicevox_synthesis",
     "plugin_widget_hello", "plugin_widget_open", "plugin_widget_place", "plugin_widget_post",
     "plugin_widget_send", "plugin_widget_where", "plugin_widgets_lock", "plugin_widgets_locked",
     "plugin_window", "plugin_window_fit", "set_meter_shown", "start_tool_drag",
@@ -2907,6 +2908,8 @@ mod tests {
     fn plugin_windows_reach_only_their_own_commands() {
         for label in ["plugin-ping", "plugins-dock", "pw_ping_ping"] {
             assert!(allowed_from(label, "plugin_storage_get"), "{label}");
+            assert!(allowed_from(label, "plugin_voicevox_speakers"), "{label}");
+            assert!(allowed_from(label, "plugin_voicevox_synthesis"), "{label}");
             assert!(allowed_from(label, "open_url"), "{label}");
             for cmd in ["show_update_window", "send_logs_to_dev", "plugin_add_folder", "plugin_install", "update_settings", "capture_screenshot", "set_run_as_admin"] {
                 assert!(!allowed_from(label, cmd), "{label} {cmd}");
@@ -3141,4 +3144,102 @@ mod tests {
         assert_eq!(names(&take_ready(&mut pending, later)), ["list", "soul"]);
         assert!(pending.is_empty());
     }
+}
+
+
+// VOICEVOX is deliberately reached only through the local engine. A plugin
+// cannot supply a host or URL, so this bridge cannot be used to make requests
+// to arbitrary machines or Internet services.
+#[cfg(feature = "online")]
+#[tauri::command]
+pub async fn plugin_voicevox_speakers(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    plugin: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let id = window_plugin(&window, plugin.as_deref())?;
+    require(&app, &id, "voicevox")?;
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let response = client
+        .get("http://127.0.0.1:50021/speakers")
+        .send()
+        .await
+        .map_err(|e| format!("VOICEVOXに接続できません: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("VOICEVOXエンジンの応答エラー: {e}"))?;
+    response.json().await.map_err(|e| format!("話者一覧を読み取れません: {e}"))
+}
+
+#[cfg(not(feature = "online"))]
+#[tauri::command]
+pub async fn plugin_voicevox_speakers(
+    _app: tauri::AppHandle,
+    _window: tauri::WebviewWindow,
+    _plugin: Option<String>,
+) -> Result<serde_json::Value, String> {
+    Err("VOICEVOX連携にはオンライン機能を含むビルドが必要です".into())
+}
+
+#[cfg(feature = "online")]
+#[tauri::command]
+pub async fn plugin_voicevox_synthesis(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    plugin: Option<String>,
+    text: String,
+    speaker: u32,
+) -> Result<Vec<u8>, String> {
+    let id = window_plugin(&window, plugin.as_deref())?;
+    require(&app, &id, "voicevox")?;
+    if text.trim().is_empty() || text.chars().count() > 200 {
+        return Err("読み上げる文章は1〜200文字で指定してください".into());
+    }
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let speaker_text = speaker.to_string();
+    let query = client
+        .post("http://127.0.0.1:50021/audio_query")
+        .query(&[("text", text.as_str()), ("speaker", speaker_text.as_str())])
+        .send()
+        .await
+        .map_err(|e| format!("VOICEVOXに接続できません: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("音声クエリの作成に失敗しました: {e}"))?
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|e| format!("音声クエリを読み取れません: {e}"))?;
+    let response = client
+        .post("http://127.0.0.1:50021/synthesis")
+        .query(&[("speaker", speaker.to_string())])
+        .json(&query)
+        .send()
+        .await
+        .map_err(|e| format!("VOICEVOXの音声合成に失敗しました: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("VOICEVOXの音声合成に失敗しました: {e}"))?;
+    if response.content_length().is_some_and(|n| n > 10 * 1024 * 1024) {
+        return Err("生成された音声が大きすぎます".into());
+    }
+    let bytes = response.bytes().await.map_err(|e| e.to_string())?;
+    if bytes.len() > 10 * 1024 * 1024 {
+        return Err("生成された音声が大きすぎます".into());
+    }
+    Ok(bytes.to_vec())
+}
+
+#[cfg(not(feature = "online"))]
+#[tauri::command]
+pub async fn plugin_voicevox_synthesis(
+    _app: tauri::AppHandle,
+    _window: tauri::WebviewWindow,
+    _plugin: Option<String>,
+    _text: String,
+    _speaker: u32,
+) -> Result<Vec<u8>, String> {
+    Err("VOICEVOX連携にはオンライン機能を含むビルドが必要です".into())
 }
