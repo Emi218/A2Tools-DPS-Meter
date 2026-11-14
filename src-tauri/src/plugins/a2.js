@@ -264,6 +264,10 @@
       speakers: () => call("voicevox.speakers", []),
       synthesis: (text, speaker) => call("voicevox.synthesis", [String(text), Number(speaker)]),
     }),
+    coeiroink: Object.freeze({
+      speakers: () => call("coeiroink.speakers", []),
+      synthesis: (text, speakerUuid, styleId) => call("coeiroink.synthesis", [String(text), String(speakerUuid), Number(styleId)]),
+    }),
     bossTimers: (server) => call("bossTimers", [Number(server)]),
     // Meter 2.0.72 on: the server's Abyss siege (artifact holders, cores).
     abyssSiege: (server) => call("abyssSiege", [Number(server)]),
