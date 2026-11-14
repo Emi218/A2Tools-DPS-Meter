@@ -119,7 +119,7 @@
       },
       "coeiroink.synthesis": ([text, speakerUuid, styleId]) => {
         if (!allowed("coeiroink")) throw new Error('the plugin lacks the "coeiroink" permission');
-        return call("plugin_coeiroink_synthesis", { text: String(text), speaker_uuid: String(speakerUuid), style_id: Number(styleId) });
+        return call("plugin_coeiroink_synthesis", { text: String(text), speakerUuid: String(speakerUuid), styleId: Number(styleId) });
       },
       "window.show": () => {
         if (!allowed("window")) throw new Error('the plugin lacks the "window" permission');
