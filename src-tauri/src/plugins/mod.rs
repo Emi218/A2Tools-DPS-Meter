@@ -3198,9 +3198,10 @@ pub async fn plugin_voicevox_synthesis(
         .timeout(std::time::Duration::from_secs(15))
         .build()
         .map_err(|e| e.to_string())?;
+    let speaker_text = speaker.to_string();
     let query = client
         .post("http://127.0.0.1:50021/audio_query")
-        .query(&[("text", text.as_str()), ("speaker", &speaker.to_string())])
+        .query(&[("text", text.as_str()), ("speaker", speaker_text.as_str())])
         .send()
         .await
         .map_err(|e| format!("VOICEVOXに接続できません: {e}"))?
